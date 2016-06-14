@@ -94,7 +94,7 @@ def main():
             hosts=dict(required=True, type='str'),
             name=dict(required=True, type='str'),
             value=dict(required=False, default=None, type='str'),
-            op=dict(required=False, default=None, choices=['get', 'wait', 'list']),
+            op=dict(required=False, default=None, choices=['get', 'wait', 'exists', 'list']),
             state=dict(choices=['present', 'absent']),
             timeout=dict(required=False, default=300, type='int'),
             recursive=dict(required=False, default=False, type='bool')
@@ -119,7 +119,8 @@ def main():
         'op': {
             'get': zoo.get,
             'list': zoo.list,
-            'wait': zoo.wait
+            'wait': zoo.wait,
+            'exists': zoo.exists,
         },
         'state': {
             'present': zoo.present,
@@ -157,6 +158,9 @@ class KazooCommandProxy():
         return self._absent(self.module.params['name'])
 
     def exists(self, znode):
+        return True, {'result': self._exists(znode)}
+        
+    def _exists(self, znode):
         return self.zk.exists(znode)
 
     def list(self):
@@ -181,14 +185,14 @@ class KazooCommandProxy():
         return self._wait(self.module.params['name'], self.module.params['timeout'])
 
     def _absent(self, znode):
-        if self.exists(znode):
+        if self._exists(znode):
             self.zk.delete(znode, recursive=self.module.params['recursive'])
             return True, {'changed': True, 'msg': 'The znode was deleted.'}
         else:
             return True, {'changed': False, 'msg': 'The znode does not exist.'}
 
     def _get(self, path):
-        if self.exists(path):
+        if self._exists(path):
             value, zstat = self.zk.get(path)
             stat_dict = {}
             for i in dir(zstat):
@@ -204,7 +208,7 @@ class KazooCommandProxy():
         return result
 
     def _present(self, path, value):
-        if self.exists(path):
+        if self._exists(path):
             (current_value, zstat) = self.zk.get(path)
             if value != current_value:
                 self.zk.set(path, value)
